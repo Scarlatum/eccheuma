@@ -311,7 +311,7 @@
 		components: {
 			Icon,
 			Tag,
-			Modal: () => import('~/components/image/Modal.vue')
+			Modal: () => import('./submodules/modal.vue')
 		},
 		mixins: [ EmitSound ],
 		props: {
@@ -333,9 +333,11 @@
 		},
 
 		computed: {
+
 			...mapState({
 				AVIF_SUPPORT: state => (state as VuexMap).Images.AVIF_SUPPORT
-			})
+			}),
+
 		},
 
 		watch: {

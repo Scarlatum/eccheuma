@@ -1,16 +1,17 @@
 <template>
 	<portal v-if="modalState" to="Modal">
 
-		<div 
+		<div
+			v-if="modalState" 
 			class="modal-wrap"
 			:class="{ 'utils::glassy': application.context.browser && (!$isMobile || application.gpu.available()) }" 
 			@mousewheel.prevent="changeZoom"
-			@click.self="ToggleModal" 
+			@click.self="toggleModal" 
 		>
 			<div class="modal-container">
 
 				<section class="modal-header">
-					<h6>{{ title || '' }}</h6>
+					<span>{{ title || '' }}</span>
 					<span>{{ description || '' }}</span>
 				</section>
 
@@ -23,13 +24,14 @@
 						{ 'grab': Zoom },
 						{ 'grabbing': Grabbing && Zoom },
 					]"
-					@mousedown="Grab(true)" 
-					@mouseup="Grab(false)"
+					@mousedown="grab(true)" 
+					@mouseup="grab(false)"
+					
 					>
 				
 					<picture>
 						<source :srcset="URL.avif" type="image/avif">
-						<img :src="URL.webp" :style="Zoom ? zoomStyle : ''">
+						<img :src="URL.webp" :style="Zoom ? zoomStyle : null" @dblclick="Zoom = !Zoom">
 					</picture>
 
 				</div>
@@ -38,7 +40,7 @@
 					<common-button @click.native="Zoom = !Zoom">
 						{{ Zoom ? 'Уменьшить' : 'Увеличить' }}
 					</common-button>
-					<common-button @click.native="ToggleModal">
+					<common-button @click.native="toggleModal">
 						Закрыть
 					</common-button>
 				</div>
@@ -63,7 +65,9 @@
 	&-wrap {
 		position: fixed; top: 0; left: 0; z-index: 9999;
 		height: 100vh; width: $GLOBAL-BodySize;
-		background-color: rgba(var(--color-mono-200), .9);
+		background:
+			radial-gradient(farthest-side, rgb(var(--color-mono-200), .5) 0%, rgb(var(--color-mono-200), .9) 85%), 
+			url(~assets/images/Stripes.png?size=15);
 		display: flex;
 	}
 	&-container {
@@ -72,12 +76,12 @@
 		
     grid-template: {
 			columns: 1fr;
-			rows: 2fr 8fr auto;
+			rows: minmax(10vh, min-content) 8fr auto;
 		}
 
     overflow: hidden;
-    width: 75vw;
-    height: 85vh;
+    height: 95vh;
+		aspect-ratio: 16/9;
     background-color: rgb(var(--color-mono-300));
     border: 1px solid rgb(var(--color-mono-400));
     border-radius: var(--border-radius);
@@ -85,22 +89,37 @@
 
 	}
 	&-header {
+
 		display: grid;
 		width: 100%;
 		text-align: center; 
 		align-content: center;
 		color: rgb(var(--color-mono-1000)); 
 		background-color: rgb(var(--color-mono-200));
-		h6 {
-			font: {
-				size: var(--font-size-20);
-				weight: 700;
-			}
-		}
+		padding: 2vh 0;
+
 		span {
-			width: 100ch;
-			margin: 0 auto;
-			font-size: var(--font-size-14);
+
+			display: block;
+			text-align: center;
+
+			&:first-child {
+
+				font: {
+					family: var(--decor-font);
+					size: var(--font-size-42);
+					weight: 500;
+				}
+
+				letter-spacing: .15ch;
+
+			}
+
+			&:last-child {
+				color: rgb(var(--color-mono-600));
+				font-size: var(--font-size-16)
+			}
+
 		}
 	}
 	&-body {
@@ -108,20 +127,32 @@
 		margin: $mar;
 		height: calc(100% - (#{$mar} * 2));
 		width: calc(100% - (#{$mar} * 2));
+
 		picture {
+
+			display: flex;
+			width: 100%;
+			height: 100%;
+
 			img {
 				width: 100%;
 				height: 100%;
 				padding: 10px;
 				object-fit: contain;
-				transition: all 250ms ease-in-out;
+				transition: all 120ms linear;
+				margin: auto;
 			}
+
 		}
+
 		&::-webkit-scrollbar {
 			width: 10px;
 			height: 10px;
 			min-width: 5px;
 			min-height: 5px;
+			&-corner {
+				background: transparent;
+			}
 			&-track {
 				border-radius: 2rem;
 				background-color: rgb(var(--color-mono-200));
@@ -144,11 +175,11 @@
 	&-footer {
 		display: grid;
 		width: 100%;
-		margin: 0 auto; 
-		padding: 4vh 25%;
-		grid-template-columns: repeat(2, 1fr); 
+		padding: 2vh 25%;
+		grid-template-columns: repeat(auto-fit, minmax(min-content, 250px)); 
 		grid-column-gap: 20px;
 		background-color: rgb(var(--color-mono-200));
+		place-content: center;
 	}
 }
 
@@ -164,15 +195,15 @@
 	// NAMESPACES
 	import { Image } from '~/typescript/Image'
 
-	// TYPES
-	type PREVIEW_MODE = 'cover' | 'contain' | 'zoom'
-
 	// VARIABLES
 	const PLACEHOLDER: Image.formatsStruct = {
 		avif: require('~/assets/images/ImagePlaceholder.png?resize&size=1000&format=avif').src,
 		webp: require('~/assets/images/ImagePlaceholder.png?resize&size=1000&format=webp').src,
 	}
 
+	const zoomStep = 20;
+
+	// MODULE
 	export default Vue.extend({
 		components: {
 			CommonButton: () => import('~/components/buttons/CommonButton.vue')
@@ -202,9 +233,6 @@
 			return {
 
 				URL: PLACEHOLDER,
-
-				PreviewMode: 'contain' as PREVIEW_MODE,
-
 				Grabbing: false,
 
 				Zoom: false,
@@ -215,14 +243,16 @@
 		computed: {
 			zoomStyle(): { height: string, width: string } {
 
+				const perc = `${ this.ZoomRate }%`;
+
 				return {
-					height: `${ this.ZoomRate }%`,
-					width: 	`${ this.ZoomRate }%`,
+					height: perc,
+					width: perc,
 				}
 
 			}
 		},
-		async created() {
+		async mounted() {
 			if ( this.application.context.browser ) {
 				this.URL = await this.getImageURL({ 
 					path: this.path,
@@ -236,25 +266,26 @@
 				getImageURL: 'Images/getImageURL',
 			}),
 
-			changeZoom(event: WheelEvent) {
+			changeZoom({ deltaY }: WheelEvent) {
 
-				const STEP = 20;
+				const sign = Math.sign(deltaY);
+				const zoom = this.ZoomRate + (zoomStep * sign);
 
-				if ( this.ZoomRate > 100 ) {
-					this.ZoomRate += (Math.sign(event.deltaY) > 0 ? STEP : -STEP );
-				}
+				this.ZoomRate = sign > 0
+					? zoom > 300
+						? Math.min(300, zoom)
+						: zoom
+					: zoom < 50
+						? Math.max(50, zoom)
+						: zoom
 
 			},
 
-			ToggleModal() {
+			toggleModal() {
 				this.$emit('toggle-modal', !this.modalState)
 			},
 
-			ChangePreviewMode(mode: PREVIEW_MODE): void {
-				this.PreviewMode = mode
-			},
-
-			Grab(value: boolean) {
+			grab(value: boolean) {
 
 				if ( this.Zoom ) {
 					this.Grabbing = value

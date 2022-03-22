@@ -172,7 +172,7 @@
 				width: $size;
 				height: $size;
 				color: rgb(var(--color-mono-500));
-				font-size: calc($size / 3);
+				font-size: calc(#{ $size } / 3);
 				background-color: rgb(var(--color-mono-200));
 				border: 3px solid rgb(var(--color-mono-400));
 				border-radius: 100%;
